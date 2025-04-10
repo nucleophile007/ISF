@@ -3,15 +3,13 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import Header from '@/components/ui/header';
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-600 to-indigo-900 text-gray-100">
       {/* Header */}
-      <header className="flex justify-between items-center p-4 bg-opacity-90 bg-blue-900 shadow-md fixed top-0 w-full z-50 backdrop-blur-lg">
-        <Image src="/images/27-dff6c2520e4e6c7c8feb5a3f9ba36b1f-removebg-preview.png" alt="Logo 1" width={80} height={80} className="drop-shadow-lg" />
-        <Image src="/images/IIT_Hyderabad_Insignia.svg.png" alt="Logo 2" width={80} height={80} className="drop-shadow-lg" />
-      </header>
+      <Header title=""/>
 
       {/* Hero Section */}
       <main className="flex flex-col items-center justify-center min-h-screen px-6 text-center">
@@ -30,8 +28,8 @@ export default function Home() {
             </p>
             <Link href="/login">
               <motion.button 
-                className="mt-8 px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-400 rounded-full shadow-xl hover:from-indigo-400 hover:to-blue-500 transition-all duration-300 ease-in-out transform hover:scale-110"
-                whileHover={{ scale: 1.1 }}>
+                className="mt-8 px-8 py-4 text-lg font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-400 rounded-full shadow-xl cursor-pointer hover:from-indigo-400 hover:to-blue-500 transition-all duration-300 ease-in-out transform hover:scale-110"
+                whileHover={{ scale: 1.05 }}>
                 Get Started
               </motion.button>
             </Link>

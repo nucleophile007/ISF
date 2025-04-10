@@ -10,6 +10,7 @@ import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import Header from "@/components/ui/header";
 
 export default function HomePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -133,7 +134,7 @@ export default function HomePage() {
     loader.load(
       fileURL,
       (geometry) => {
-        const material = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 100 });
+        const material = new THREE.MeshPhongMaterial({ color: 0x888888, shininess: 100 , side: THREE.DoubleSide,});
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
 
@@ -168,22 +169,18 @@ export default function HomePage() {
   }
 
   return (
+    <>
+    <Header title="Toolpath for Incremental Sheet Forming"/>
     <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-300 dark:from-gray-900 dark:to-gray-800 flex flex-col items-center p-6 transition-colors duration-500">
-      <header className="w-full flex justify-between items-center bg-blue-600 dark:bg-blue-800 p-4 text-white rounded-lg shadow-md">
-        <Image src="/images/27-dff6c2520e4e6c7c8feb5a3f9ba36b1f-removebg-preview.png" alt="Logo 1" width={80} height={80} />
-        <h1 className="text-2xl font-bold text-center">Toolpath for Incremental Sheet Forming</h1>
-        <Image src="/images/IIT_Hyderabad_Insignia.svg.png" alt="Logo 2" width={80} height={80} />
-      </header>
-
       <h2 className="text-xl font-semibold mt-4 text-center dark:text-white animate-fade-in">Welcome, {user.name}!</h2>
 
       <Card className="bg-white dark:bg-gray-900 mt-6 w-full max-w-lg shadow-xl">
         <CardContent className="space-y-4 p-6">
           <h2 className="text-xl font-semibold dark:text-white">Upload Your File</h2>
           <Input type="file" accept=".step,.stp,.stl" onChange={handleFileChange} required />
-          <Input type="number" name="incremental_depth" value={formData.incremental_depth} onChange={handleChange} placeholder="Incremental Depth (mm)" required />
+          <Input type="number" name="incremental_depth" step="0.1" value={formData.incremental_depth} onChange={handleChange} placeholder="Incremental Depth (mm)" required />
           <Input type="number" name="tool_dia" value={formData.tool_dia} onChange={handleChange} placeholder="Tool Diameter (mm)" required />
-          <Input type="number" name="feedrate" value={formData.feedrate} onChange={handleChange} placeholder="Feedrate (mm/min)" required />
+          <Input type="number" name="feedrate" step="10" value={formData.feedrate} onChange={handleChange} placeholder="Feedrate (mm/min)" required />
           <Button type="submit" className="w-full">Upload and Convert</Button>
         </CardContent>
       </Card>
@@ -200,5 +197,6 @@ export default function HomePage() {
         <p>© 2024 Incremental Forming. All rights reserved.</p>
       </footer>
     </div>
+    </>
   );
 }

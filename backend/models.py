@@ -12,3 +12,4 @@ class User(db.Model):
     password = db.Column(db.String(255), nullable=False)
     otp = db.Column(db.String(6), nullable=True)  # OTP field
     is_verified = db.Column(db.Boolean, default=False)  # Email verification status
+   # created_at = db.Column(db.DateTime, default=db.func.current_timestamp())

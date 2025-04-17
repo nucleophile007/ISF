@@ -14,13 +14,14 @@ import Header from "@/components/ui/header";
 
 export default function HomePage() {
   const [file, setFile] = useState<File | null>(null);
+  const [convertedSTL, setConvertedSTL] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     incremental_depth: "",
     tool_dia: "",
     feedrate: "",
     cnc: "",
   });
-  const [user, setUser] = useState<{ name: string } | null>(null);
+  const [user, setUser] = useState<{ name: string, email: string } | null>(null);
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
 
@@ -43,11 +44,18 @@ export default function HomePage() {
       .catch(() => router.push("/login"));
   }, [router]);
 
+  useEffect(() => {
+    if (file) {
+      console.log("Updated file state:", file);
+    }
+  }, [file]);
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
+      console.log(selectedFile)
       setFile(selectedFile);
-
+      console.log(file)
       const filename = selectedFile.name.toLowerCase();
 
       if (filename.endsWith(".step") || filename.endsWith(".stp")) {
@@ -61,8 +69,12 @@ export default function HomePage() {
             },
           });
 
+          // const stlUrl = res.data.stl_url;
+          // console.log("STL auto-converted from STEP:", stlUrl);
+          // loadSTLFile(stlUrl);
           const stlUrl = res.data.stl_url;
           console.log("STL auto-converted from STEP:", stlUrl);
+          setConvertedSTL(stlUrl); // ✅ store the STL for later use
           loadSTLFile(stlUrl);
         } catch (err) {
           console.error("Auto-conversion error:", err);
@@ -81,25 +93,72 @@ export default function HomePage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  //   e.preventDefault();
+    
+  //   if (!file || !convertedSTL) return alert("Please select a file first.");
+  //   if (!user || !user.email) return alert("User information missing.");
+  //   const data = new FormData();
+  //   data.append("file", file);
+  //   Object.entries(data).forEach(([key, value]) => {
+  //     data.append(key, value);
+  //   });
+  //   for (let pair of data.entries()) {
+  //     console.log(pair[0] + ': ' + pair[1]);
+  //   }
+  //   try {
+  //     const res = await axios.post("http://127.0.0.1:5000/upload2", data, {
+  //       headers: {
+  //         "Content-Type": "multipart/form-data",
+  //       },
+  //     });
+  //     const encodedFilename = encodeURIComponent(convertedSTL);
+      
+  //     console.log("Upload successful:", res.data);
+  //     const filename = res.data.stl_url.split("converted/")[1];
+  //     console.log(filename)
+  //     alert("File uploaded successfully!");
+      
+  //     // console.log(encodedFilename)
+  //     // router.push(`/l/visualise?filename=${uploadedFilename}`);
+  //     const email = user.email.replace(/[^a-zA-Z0-9]/g, "_"); // sanitize filename
+  //     router.push(`/view/${email}.stl`);
+
+  //   } catch (err) {
+  //     console.error("Error uploading file:", err);
+  //     alert("Failed to upload or convert file.");
+  //   }
+  // };
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!file) return alert("Please select a file first.");
-
+  
+    if (!file || !convertedSTL) return alert("Please select a file first.");
+    if (!user || !user.email) return alert("User information missing.");
+  
     const data = new FormData();
-    data.append("file", file);
-    Object.entries(formData).forEach(([key, value]) => {
-      data.append(key, value);
-    });
-
+    data.append("file", file); // <- This sends the STEP file
+  
+    // Append the form fields individually
+    data.append("incremental_depth", formData.incremental_depth);
+    data.append("tool_dia", formData.tool_dia);
+    data.append("feedrate", formData.feedrate);
+    data.append("cnc", formData.cnc);
+    data.append("email", user.email); // if needed by the backend
+  
     try {
-      const res = await axios.post("http://127.0.0.1:5000/upload", data, {
+      const res = await axios.post("http://127.0.0.1:5000/upload2", data, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
-
-      console.log("Upload successful:", res.data);
+  
+      // const filename = res.data.stl_url?.split("converted/")[1];
+      // console.log("Upload successful:", res.data);
+      // console.log("Parsed filename:", filename);
       alert("File uploaded successfully!");
+  
+      const email = user.email.replace(/[^a-zA-Z0-9]/g, "_");
+      router.push(`/view`);
     } catch (err) {
       console.error("Error uploading file:", err);
       alert("Failed to upload or convert file.");
@@ -146,7 +205,7 @@ export default function HomePage() {
         const maxDim = Math.max(size.x, size.y, size.z);
         const fov = camera.fov * (Math.PI / 180);
         const cameraZ = Math.abs(maxDim / 2 / Math.tan(fov / 2));
-        camera.position.set(0, 0, cameraZ);
+        camera.position.set(0, 0, cameraZ*2);
         camera.lookAt(new THREE.Vector3(0, 0, 0));
 
         animate();
@@ -173,18 +232,43 @@ export default function HomePage() {
     <Header title="Toolpath for Incremental Sheet Forming"/>
     <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-300 dark:from-gray-900 dark:to-gray-800 flex flex-col items-center p-6 transition-colors duration-500">
       <h2 className="text-xl font-semibold mt-4 text-center dark:text-white animate-fade-in">Welcome, {user.name}!</h2>
-
+      <form onSubmit={handleSubmit}>
       <Card className="bg-white dark:bg-gray-900 mt-6 w-full max-w-lg shadow-xl">
         <CardContent className="space-y-4 p-6">
           <h2 className="text-xl font-semibold dark:text-white">Upload Your File</h2>
-          <Input type="file" accept=".step,.stp,.stl" onChange={handleFileChange} required />
+          <Input type="file" accept=".step,.stp,.stl" onChange={(e) => { handleFileChange(e); handleChange(e); }} required />
           <Input type="number" name="incremental_depth" step="0.1" value={formData.incremental_depth} onChange={handleChange} placeholder="Incremental Depth (mm)" required />
           <Input type="number" name="tool_dia" value={formData.tool_dia} onChange={handleChange} placeholder="Tool Diameter (mm)" required />
           <Input type="number" name="feedrate" step="10" value={formData.feedrate} onChange={handleChange} placeholder="Feedrate (mm/min)" required />
+          <div>
+              <p className="dark:text-white font-medium">Select CNC Machine</p>
+              <div className="flex space-x-4 mt-2">
+                <label className="flex items-center space-x-2 text-gray-800 dark:text-white">
+                  <input
+                    type="radio"
+                    name="cnc"
+                    value="Fanuc"
+                    checked={formData.cnc === "Fanuc"}
+                    onChange={handleChange}
+                  />
+                  <span>Fanuc</span>
+                </label>
+                <label className="flex items-center space-x-2 text-gray-800 dark:text-white">
+                  <input
+                    type="radio"
+                    name="cnc"
+                    value="Siemens"
+                    checked={formData.cnc === "Siemens"}
+                    onChange={handleChange}
+                  />
+                  <span>Siemens</span>
+                </label>
+              </div>
+          </div>
           <Button type="submit" className="w-full">Upload and Convert</Button>
         </CardContent>
       </Card>
-
+      </form>
       <div className="w-full mt-6 flex justify-center items-center">
   <div
     ref={viewerRef}

@@ -11,7 +11,7 @@ jwt = JWTManager()
 mail = Mail()  # Initialize mail object here
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__ , static_folder='static')
     
     # ✅ Properly configure CORS
     CORS(app, origins="http://localhost:3000", supports_credentials=True)
@@ -43,7 +43,9 @@ def create_app():
     app.register_blueprint(user)
     from routes.file import file
     app.register_blueprint(file)
-
+    @app.route('/static/<path:filename>')
+    def static_files(filename):
+        return send_from_directory(app.static_folder, filename)
 
     # ✅ Create tables within the application context
     with app.app_context():

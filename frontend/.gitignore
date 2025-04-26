@@ -43,11 +43,3 @@ next-env.d.ts
 __pycache__/
 *.pyc
 
-backend/converted/
-backend/instance/
-backend/uploads/
-backend/STEPonly/
-backend/upload1/
-backend/static/
-backend/templates/
-backend/users/

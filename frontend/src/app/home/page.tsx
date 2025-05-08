@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/ui/header";
+import Footer from "@/components/ui/footer";
 import { useCNCStore } from "@/store/useCNCStore";
 const API = process.env.NEXT_PUBLIC_API_URL;
 
@@ -24,6 +25,9 @@ export default function HomePage() {
     feedrate: "",
     cnc: "",
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
   const [user, setUser] = useState<{ name: string, email: string } | null>(null);
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
@@ -60,10 +64,17 @@ export default function HomePage() {
       setFile(selectedFile);
       console.log(file)
       const filename = selectedFile.name.toLowerCase();
+      if (!user || !user.email) {
+        setError("User information missing.");
+        setLoading(false);
+        return;
+      }
 
       if (filename.endsWith(".step") || filename.endsWith(".stp")) {
         const data = new FormData();
         data.append("file", selectedFile);
+        console.log("Selected file:", selectedFile);
+        data.append("email", user.email);
 
         try {
           const res = await axios.post(`${API}/upload`, data, {
@@ -96,84 +107,153 @@ export default function HomePage() {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-  //   e.preventDefault();
-    
-  //   if (!file || !convertedSTL) return alert("Please select a file first.");
-  //   if (!user || !user.email) return alert("User information missing.");
-  //   const data = new FormData();
-  //   data.append("file", file);
-  //   Object.entries(data).forEach(([key, value]) => {
-  //     data.append(key, value);
-  //   });
-  //   for (let pair of data.entries()) {
-  //     console.log(pair[0] + ': ' + pair[1]);
-  //   }
-  //   try {
-  //     const res = await axios.post("http://127.0.0.1:5000/upload2", data, {
-  //       headers: {
-  //         "Content-Type": "multipart/form-data",
-  //       },
-  //     });
-  //     const encodedFilename = encodeURIComponent(convertedSTL);
-      
-  //     console.log("Upload successful:", res.data);
-  //     const filename = res.data.stl_url.split("converted/")[1];
-  //     console.log(filename)
-  //     alert("File uploaded successfully!");
-      
-  //     // console.log(encodedFilename)
-  //     // router.push(`/l/visualise?filename=${uploadedFilename}`);
-  //     const email = user.email.replace(/[^a-zA-Z0-9]/g, "_"); // sanitize filename
-  //     router.push(`/view/${email}.stl`);
-
-  //   } catch (err) {
-  //     console.error("Error uploading file:", err);
-  //     alert("Failed to upload or convert file.");
-  //   }
-  // };
+  function LoadingOverlay() {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [showMessage, setShowMessage] = useState(false);
+  
+    useEffect(() => {
+      const timer = setTimeout(() => setShowMessage(true), 3000);
+  
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+  
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 1000);
+      camera.position.set(0, 0, 15);
+  
+      const renderer = new THREE.WebGLRenderer({ canvas, alpha: true });
+      renderer.setSize(400, 400);
+      renderer.setPixelRatio(window.devicePixelRatio);
+  
+      // Lights
+      scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+      const light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(10, 10, 20);
+      scene.add(light);
+  
+      // Sheet
+      const geometry = new THREE.PlaneGeometry(6, 6, 60, 60);
+      const material = new THREE.MeshStandardMaterial({
+        color: 0xdddddd,
+        side: THREE.DoubleSide,
+        wireframe: true,
+      });
+      const sheet = new THREE.Mesh(geometry, material);
+      scene.add(sheet);
+  
+      // Tool
+      const tool = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2, 32, 32),
+        new THREE.MeshStandardMaterial({ color: 0x0a8098 })
+      );
+      scene.add(tool);
+  
+      // Shaft
+      const shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.04, 8, 16),
+        new THREE.MeshStandardMaterial({ color: 0x444444 })
+      );
+      shaft.rotation.x = Math.PI / 2;
+      scene.add(shaft);
+  
+      let t = 0;
+      function animate() {
+        requestAnimationFrame(animate);
+        t += 0.02;
+  
+        const x = Math.sin(t) * 1.5;
+        const y = Math.cos(t) * 1.5;
+        const z = -Math.abs(Math.sin(t * 2)) * 1;
+  
+        tool.position.set(x, y, z);
+        shaft.position.set(x, y, z + 4);
+        shaft.scale.z = 1;
+  
+        const pos = geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          const px = pos.getX(i);
+          const py = pos.getY(i);
+          const distance = Math.sqrt((px - x) ** 2 + (py - y) ** 2);
+          const influence = Math.exp(-distance * 3);
+          pos.setZ(i, -influence * Math.abs(z) * 1.5);
+        }
+        pos.needsUpdate = true;
+  
+        renderer.render(scene, camera);
+      }
+  
+      animate();
+  
+      return () => clearTimeout(timer);
+    }, []);
+  
+    return (
+      <div className="fixed inset-0 z-50 backdrop-blur-sm bg-white/30 dark:bg-black/30 flex flex-col items-center justify-center">
+        <div className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
+          Forming in progress...
+        </div>
+  
+        <canvas ref={canvasRef} style={{ width: 400, height: 400 }} />
+  
+        {showMessage && (
+          <div className="text-md mt-4 text-gray-600 dark:text-gray-300 animate-pulse">
+            Keep patience — precision takes time.
+          </div>
+        )}
+      </div>
+    );
+  }
+  
+  
+  
+  
+  
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setError("");
+    setLoading(true);
   
-    if (!file || !convertedSTL) return alert("Please select a file first.");
-    if (!user || !user.email) return alert("User information missing.");
+    if (!file || !convertedSTL) {
+      setError("Please select a file first.");
+      setLoading(false);
+      return;
+    }
+  
+    if (!user || !user.email) {
+      setError("User information missing.");
+      setLoading(false);
+      return;
+    }
   
     const data = new FormData();
-    data.append("file", file); // <- This sends the STEP file
-  
-    // Append the form fields individually
+    data.append("file", file);
     data.append("incremental_depth", formData.incremental_depth);
     data.append("tool_dia", formData.tool_dia);
     data.append("feedrate", formData.feedrate);
     data.append("cnc", formData.cnc);
-    data.append("email", user.email); // if needed by the backend
+    data.append("email", user.email);
   
     try {
-      const res = await axios.post(`${API}//upload2`, data, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+      const res = await axios.post(`${API}/upload2`, data, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
-
+  
       const result = res.data as { contour_folder?: string; spiral_folder?: string };
-
+  
       if (result.contour_folder && result.spiral_folder) {
         useCNCStore.getState().setFolders(result.contour_folder, result.spiral_folder);
       }
   
-      // const filename = res.data.stl_url?.split("converted/")[1];
-      // console.log("Upload successful:", res.data);
-      // console.log("Parsed filename:", filename);
-      alert("File uploaded successfully!");
-  
-      const email = user.email.replace(/[^a-zA-Z0-9]/g, "_");
-      router.push(`/view`);
+      const emailSanitized = user.email.replace(/[^a-zA-Z0-9]/g, "_");
+      router.push("/view");
     } catch (err) {
       console.error("Error uploading file:", err);
-      alert("Failed to upload or convert file.");
+      setError("Failed to upload or convert file.");
+    } finally {
+      setLoading(false);
     }
   };
-
+  
   const loadSTLFile = (fileURL: string) => {
     if (!viewerRef.current) return;
 
@@ -238,6 +318,7 @@ export default function HomePage() {
 
   return (
     <>
+        {loading && <LoadingOverlay />} 
     <Header title="Toolpath for Incremental Sheet Forming"/>
     <div className="min-h-screen bg-gradient-to-b from-gray-100 to-gray-300 dark:from-gray-900 dark:to-gray-800 flex flex-col items-center p-6 transition-colors duration-500">
       <h2 className="text-xl font-semibold mt-4 text-center dark:text-white animate-fade-in">Welcome, {user.name}!</h2>
@@ -249,52 +330,10 @@ export default function HomePage() {
           <Input type="number" name="incremental_depth" step="0.1" value={formData.incremental_depth} onChange={handleChange} placeholder="Incremental Depth (mm)" required />
           <Input type="number" name="tool_dia" value={formData.tool_dia} onChange={handleChange} placeholder="Tool Diameter (mm)" required />
           <Input type="number" name="feedrate" step="10" value={formData.feedrate} onChange={handleChange} placeholder="Feedrate (mm/min)" required />
-          {/* <div>
-              <p className="dark:text-white font-medium">Select CNC Machine</p>
-              <div className="flex space-x-4 mt-2">
-                <label className="flex items-center space-x-2 text-gray-800 dark:text-white">
-                  <input
-                    type="radio"
-                    name="cnc"
-                    value="Fanuc"
-                    checked={formData.cnc === "Fanuc"}
-                    onChange={handleChange}
-                  />
-                  <span>Fanuc</span>
-                </label>
-                <label className="flex items-center space-x-2 text-gray-800 dark:text-white">
-                  <input
-                    type="radio"
-                    name="cnc"
-                    value="Siemens"
-                    checked={formData.cnc === "Siemens"}
-                    onChange={handleChange}
-                  />
-                  <span>Siemens</span>
-                </label>
-              </div>
-          </div> */}
             <div>
             <p className="dark:text-white font-medium mb-2">Select CNC Machine</p>
             <div className="flex items-center gap-6 mt-2">
               {["Fanuc", "Siemens"].map((option) => (
-                // <label
-                //   key={option}
-                //   className="flex items-center gap-2 cursor-pointer group"
-                // >
-                //   <div className="relative">
-                //     <input
-                //       type="radio"
-                //       name="cnc"
-                //       value={option}
-                //       checked={formData.cnc === option}
-                //       onChange={handleChange}
-                //       className="appearance-none w-4 h-4 border-2 border-[#0a8098] rounded-full checked:border-4 checked:border-[#0a8098] transition-all duration-200"
-                //     />
-                //     <span className="absolute top-0 left-0 w-4 h-4 rounded-full border-2 border-[#0a8098] pointer-events-none"></span>
-                //   </div>
-                //   <span className="text-sm text-gray-800 dark:text-white font-medium">{option}</span>
-                // </label>
                 <label key={option} className="flex items-center gap-2 cursor-pointer">
                 <div className="relative w-4 h-4">
                   <input
@@ -340,10 +379,8 @@ export default function HomePage() {
   />
 </div>
 
-
-      <footer className="mt-6 text-center text-gray-600 dark:text-gray-400">
-        <p>© 2024 Incremental Forming. All rights reserved.</p>
-      </footer>
+        <Footer />
+      
     </div>
     </>
   );

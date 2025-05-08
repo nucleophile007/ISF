@@ -26,17 +26,36 @@ UPLOAD_FOLDER = os.path.join(BASE_PATH, "upload1")
 Users_FOLDER = os.path.join(BASE_PATH, "users")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(Users_FOLDER, exist_ok=True)
+from datetime import datetime
+
 @file.route("/upload", methods=["POST"])
 def upload_file():
     file = request.files.get("file")
+    print(file)
+    email = request.form.get("email")
+    print(email)
+    
+    if not email:  
+        print("Email is required")
+        return jsonify({"error": "Email is required"}), 400
     if not file:
         return jsonify({"error": "No file uploaded"}), 400
 
-    filename = secure_filename(file.filename)
-    filepath = os.path.join(UPLOAD_FOLDER1, filename)
+    # Create a folder for the email if it doesn't exist
+    email_folder = os.path.join(UPLOAD_FOLDER1, secure_filename(email))
+    os.makedirs(email_folder, exist_ok=True)
+
+    # Add timestamp to filename
+    original_filename = secure_filename(file.filename)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    name, ext = os.path.splitext(original_filename)
+    new_filename = f"{name}_{timestamp}{ext}"
+
+    # Save file in the email folder
+    filepath = os.path.join(email_folder, new_filename)
     file.save(filepath)
 
-    if filename.lower().endswith((".step", ".stp")):
+    if new_filename.lower().endswith((".step", ".stp")):
         try:
             stl_path = convert_step_to_stl(filepath, CONVERTED_FOLDER)
             stl_url = f"{os.path.basename(stl_path)}"
@@ -44,12 +63,14 @@ def upload_file():
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
-    elif filename.lower().endswith(".stl"):
-        dest_path = os.path.join(CONVERTED_FOLDER, filename)
+    elif new_filename.lower().endswith(".stl"):
+        dest_path = os.path.join(CONVERTED_FOLDER, new_filename)
         os.rename(filepath, dest_path)
-        return jsonify({ "stl_url": f"{filename}" })
+        return jsonify({ "stl_url": f"{new_filename}" })
 
     return jsonify({ "error": "Unsupported file format" }), 400
+
+
 
 @file.route("/converted/<filename>")
 def serve_stl(filename):
@@ -311,8 +332,16 @@ def upload_file2():
         gen_toolpath(pnt_contour_path, n_contour_path, TD1, Feed, cnc, 'contourSPIF_', contour_folder)
         gen_toolpath(pnt_spiral_path, n_spiral_path, TD1, Feed, cnc, 'spiralSPIF_', spiral_folder)
 
-        contour_html_path = os.path.join(BASE_PATH, "static", "pont.html")
-        spiral_html_path = os.path.join(BASE_PATH, "static", "spont.html")
+        email_safe = secure_filename(email)  # Ensure it's safe for use in a path
+
+# Ensure the email folder exists inside the static directory
+        static_email_folder = os.path.join(BASE_PATH, "static", email_safe)
+        os.makedirs(static_email_folder, exist_ok=True)
+
+# Construct the paths for the HTML files inside the email-specific folder
+        contour_html_path = os.path.join(static_email_folder, "pont.html")
+        spiral_html_path = os.path.join(static_email_folder, "spont.html")
+
 
         scontour = plot(pnt_contour_path, contour_html_path, 'Contour Trajectory')
         sspiral = plot(pnt_spiral_path, spiral_html_path, 'Spiral Trajectory')
@@ -345,15 +374,60 @@ def download_file2():
     make_archive(spiral_folder, 'zip', spiral_folder)
     file_location = zip_path
     return send_file(file_location, as_attachment=True, download_name='Spiral_'+str(datetime.now().strftime("%Y-%m-%d %H-%M-%S"))+'.zip')
-@file.route('/simul1' , methods=['GET'])
+def sanitize_email(email):
+    return email.replace("@", "")  # Match frontend sanitization
+
+@file.route('/simul1', methods=['GET'])
 def simulate_contour():
-    ht1=BASE_PATH+"static/simulContour.html"
-    simulate(scontour, ht1, 'Contour Trajectory')
-    return {"html_path": "/static/simulContour.html"}
+    email = request.args.get('email', '')
+    user_folder = sanitize_email(email) if email else "default"
+    output_dir = os.path.join(BASE_PATH, "static", user_folder)
+    os.makedirs(output_dir, exist_ok=True)
 
-@file.route('/simul2' , methods=['GET'])
+    html_filename = "simulContour.html"
+    html_path = os.path.join(output_dir, html_filename)
+    simulate(scontour, html_path, 'Contour Trajectory')
+
+    return {"html_path": f"/static/{user_folder}/{html_filename}"}
+
+@file.route('/simul2', methods=['GET'])
 def simulate_spiral():
-    ht2=BASE_PATH+"static/simulSpiral.html"
-    simulate(sspiral, ht2, 'Spiral Trajectory')
-    return {"html_path": "/static/simulSpiral.html"}
+    email = request.args.get('email', '')
+    user_folder = sanitize_email(email) if email else "default"
+    output_dir = os.path.join(BASE_PATH, "static", user_folder)
+    os.makedirs(output_dir, exist_ok=True)
 
+    html_filename = "simulSpiral.html"
+    html_path = os.path.join(output_dir, html_filename)
+    simulate(sspiral, html_path, 'Spiral Trajectory')
+
+    return {"html_path": f"/static/{user_folder}/{html_filename}"}
+
+
+STEP_FOLDER = os.path.join(os.getcwd(), "STEPonly")
+
+@file.route("/api/admin/files", methods=["GET"])
+def list_step_files():
+    try:
+        files = os.listdir(STEP_FOLDER)
+        return jsonify({"files": files})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@file.route("/api/admin/download/<filename>", methods=["GET"])
+def download_step_file(filename):
+    try:
+        return send_from_directory(STEP_FOLDER, filename, as_attachment=True)
+    except FileNotFoundError:
+        return jsonify({"error": "File not found"}), 404
+@file.route("/api/admin/delete/<filename>", methods=["DELETE"])
+def delete_file(filename):
+    try:
+        file_path = os.path.join(STEP_FOLDER, filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            return jsonify({"success": True, "message": "File deleted successfully"}), 200
+        else:
+            return jsonify({"success": False, "message": "File not found"}), 404
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500

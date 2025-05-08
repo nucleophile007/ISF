@@ -929,7 +929,7 @@ def process_step_file(step_path,contour_folder, spiral_folder,dz):
     #Opens a file to store normals
     f2=open(file_path2,"w")
 
-    file_name4="pntspiral.txt"
+    file_name4="pntSpiral.txt"
     #file path for stotring spiral points(change the address to the address of your pc while locally hosting)
     file_path4=os.path.join(spiral_folder, file_name4)
     global f_N4
@@ -937,7 +937,7 @@ def process_step_file(step_path,contour_folder, spiral_folder,dz):
     #opens a file to store spiral points
     f4=open(file_path4,'w')
 
-    file_name5="nspiral.txt"
+    file_name5="nSpiral.txt"
     #file path for stotring spiral normal(change the address to the address of your pc while locally hosting)
     file_path5=os.path.join(spiral_folder, file_name5)
     global f_N5

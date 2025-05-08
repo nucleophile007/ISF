@@ -49,7 +49,7 @@
 
 import { useEffect, useState } from 'react';
 
-const sections = ['home', 'about', 'services', 'contact'];
+const sections = ['home', 'about', 'documentation', 'contact'];
 
 export default function Navbar() {
   const [active, setActive] = useState('home');

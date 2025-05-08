@@ -14,10 +14,10 @@ def create_app():
     app = Flask(__name__ , static_folder='static')
     
     # ✅ Properly configure CORS
-    CORS(app, origins=["http://localhost:3000", "http://10.200.244.245:3000"], supports_credentials=True)
+    CORS(app, origins=["http://localhost:3000", "http://10.200.254.39:3000"], supports_credentials=True)
 
     # ✅ Flask Configurations
-    app.config["SQLALCHEMY_DATABASE_URI"] = 'postgresql+psycopg2://postgres:12345678@localhost:5432/hello_deepak'
+    app.config["SQLALCHEMY_DATABASE_URI"] = 'postgresql+psycopg2://postgres:12345678@localhost:5432/hello_duniya'
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["JWT_SECRET_KEY"] = "1234erdjhmfd7676r"
     app.config["BCRYPT_LOG_ROUNDS"] = 12  
@@ -29,6 +29,9 @@ def create_app():
     app.config['MAIL_USERNAME'] = 'dkdps3212@gmail.com'
     app.config['MAIL_PASSWORD'] = 'xxlbkjaecnbhsqra'
     #app.config["MAIL_DEFAULT_SENDER"] = "your_email@gmail.com"
+    app.config["ALLOW_SIGNUP"] = True
+    app.config["ALLOW_LOGIN"] = True
+
 
     # ✅ Initialize extensions
     db.init_app(app)

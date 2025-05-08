@@ -266,7 +266,7 @@ export default function Home() {
             transition={{ duration: 0.8 }}
           >
             <h1 className="text-5xl md:text-6xl font-extrabold leading-tight text-white">
-              Intelligent Toolpath Generation
+              Incremental Forming
             </h1>
             <p className="text-lg text-gray-300">
               Upload your CAD models (.STEP) and automatically generate spiral or contour toolpaths for Single Point Incremental Forming.

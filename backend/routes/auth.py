@@ -8,7 +8,7 @@ from flask_jwt_extended import (
 )
 from flask_bcrypt import Bcrypt
 from flask_mail import Mail, Message
-from models import db, User
+from models import db, User,Feedback
 from itsdangerous import URLSafeTimedSerializer
 import os
 
@@ -24,6 +24,8 @@ def generate_otp():
 
 @auth.route("/api/signup", methods=["POST"])
 def signup():
+    if not current_app.config.get("ALLOW_SIGNUP", True):
+        return jsonify({"success": False, "message": "Signup is currently disabled by admin."}), 403
     data = request.json
     name = data.get("name")
     email = data.get("email")
@@ -91,6 +93,9 @@ def verify_otp():
 
 @auth.route("/api/login", methods=["POST"])
 def login():
+    if not current_app.config.get("ALLOW_LOGIN", True):
+        return jsonify({"success": False, "message": "Login is currently disabled by admin."}), 403
+
     data = request.json
     email = data.get("email")
     password = data.get("password")
@@ -103,8 +108,15 @@ def login():
     if not user.is_verified:
         return jsonify({"success": False, "message": "Please verify your email first"}), 403
 
-    token = create_access_token(identity=user.email)  # Generate JWT Token
-    return jsonify({"success": True, "message": "Login successful", "token": token}), 200
+    token = create_access_token(identity=user.email)
+
+    return jsonify({
+        "success": True,
+        "message": "Login successful",
+        "token": token,
+        "user_role": user.user_role  # 👈 include role in response
+    }), 200
+
 
 from flask import request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -112,7 +124,7 @@ from flask_cors import cross_origin
 
 @auth.route("/api/me", methods=["GET", "OPTIONS"])
 @cross_origin(
-    origins=["http://localhost:3000", "http://10.200.244.245:3000" ,"http://10.200.20.205:5001"],
+    origins=["http://localhost:3000", "http://10.200.254.39:3000" ,"http://10.200.20.205:5001"],
     supports_credentials=True,
     methods=["GET", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"]
@@ -181,3 +193,76 @@ def reset_password():
 
     return jsonify({"success": True, "message": "Password reset successful"}), 200
 
+@auth.route("/api/feedback", methods=["POST"])
+@jwt_required()
+def add_feedback():
+    user_email = get_jwt_identity()  # this returns email, not ID
+    user = User.query.filter_by(email=user_email).first()
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    data = request.get_json()
+    feedback_text = data.get('feedback_text')
+    
+    if not feedback_text:
+        return jsonify({'error': 'Feedback text is required'}), 400
+
+    feedback = Feedback(
+        user_email=user.email,
+        user_name=user.name,
+        feedback_text=feedback_text
+    )
+    db.session.add(feedback)
+    db.session.commit()
+
+    return jsonify({'message': 'Feedback submitted successfully'}), 201
+
+@auth.route("/api/admin/feedback", methods=["GET"])
+def get_all_feedback():
+    # Get the page and limit from query parameters
+    page = request.args.get('page', 1, type=int)  # Default page = 1
+    limit = request.args.get('limit', 10, type=int)  # Default limit = 10
+
+    # Fetch paginated feedback from the database
+    feedback_query = Feedback.query.paginate(page=page, per_page=limit, error_out=False)
+
+    # Prepare the response data
+    feedback_data = []
+    for fb in feedback_query.items:
+        feedback_data.append({
+            'id': fb.id,
+            'user_email': fb.user_email,
+            'user_name': fb.user_name,
+            'feedback_text': fb.feedback_text,
+            'created_at': fb.created_at
+        })
+
+    # Response with pagination metadata
+    response = {
+        'data': feedback_data,
+        'total': feedback_query.total,
+        'pages': feedback_query.pages,
+        'current_page': feedback_query.page,
+    }
+
+    return jsonify(response), 200
+
+
+@auth.route("/api/admin/toggle-signup", methods=["POST"])
+def toggle_signup():
+    current_state = current_app.config.get("ALLOW_SIGNUP", True)
+    current_app.config["ALLOW_SIGNUP"] = not current_state
+    return jsonify({"signup_allowed": current_app.config["ALLOW_SIGNUP"]})
+
+@auth.route("/api/admin/toggle-login", methods=["POST"])
+def toggle_login():
+    current_state = current_app.config.get("ALLOW_LOGIN", True)
+    current_app.config["ALLOW_LOGIN"] = not current_state
+    return jsonify({"login_allowed": current_app.config["ALLOW_LOGIN"]})
+
+@auth.route("/api/admin/status", methods=["GET"])
+def get_status():
+    return jsonify({
+        "signup_allowed": current_app.config.get("ALLOW_SIGNUP", True),
+        "login_allowed": current_app.config.get("ALLOW_LOGIN", True)
+    })
